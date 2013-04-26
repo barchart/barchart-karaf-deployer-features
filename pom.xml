@@ -80,7 +80,8 @@
 						<Bundle-SymbolicName>${project.artifactId};blueprint.graceperiod:=false</Bundle-SymbolicName>
 						<Export-Package />
 						<Private-Package>
-							org.apache.karaf.*
+                            org.apache.karaf.deployer.features,
+                            org.apache.karaf.util
 						</Private-Package>
 					</instructions>
 				</configuration>
