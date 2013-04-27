@@ -46,7 +46,7 @@ import org.xml.sax.SAXParseException;
 
 /**
  * A deployment listener able to hot deploy (install/uninstall) a repository
- * descriptor.
+ * descriptor as well as auto-install features.
  * <p>
  * Assumptions:
  * <p>
@@ -56,6 +56,7 @@ import org.xml.sax.SAXParseException;
  * <p>
  * feature.xml file must have file extension managed by this component.
  * <p>
+ * external file name and internal root name must be the same.
  */
 public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		SynchronousBundleListener {
@@ -69,8 +70,8 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	/** Features path inside the wrapper bundle jar. */
 	static final String META_PATH = "/META-INF/" + FEATURE_PATH + "/";
 
-	/** Deployer state properties. */
-	static final String PROPERTIES = "deployer.properties";
+	/** Deployer state properties file name. */
+	static final String PROP_FILE = "deployer.properties";
 
 	/** Feature deployer protocol, used by default feature deployer. */
 	static final String PROTOCOL = "feature";
@@ -162,7 +163,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	}
 
 	/**
-	 * Install feature if missing, else count up.
+	 * Increment counts, install feature when due.
 	 */
 	void featureAdd(final Repository repo, final Feature feature)
 			throws Exception {
@@ -172,11 +173,11 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 
 		if (propBean.checkIncrement(repo, feature)) {
 			if (isMissing) {
-				if (propBean.totalValue(feature) > 1) {
+				if (propBean.countValue(null, feature) > 1) {
 					logger.error(
 							"Feature count error.",
 							new IllegalStateException(
-									"Feature is missing when should be installed."));
+									"Feature is missing when should be present."));
 				}
 				featureInstall(feature);
 			}
@@ -192,7 +193,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	void featureInstall(final Feature feature) throws Exception {
 		final String name = feature.getName();
 		final String version = feature.getVersion();
-		featuresService.installFeature(name, version, options());
+		getFeaturesService().installFeature(name, version, options());
 	}
 
 	/**
@@ -208,7 +209,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	}
 
 	/**
-	 * Count down, else uninstall feature if present.
+	 * Decrement counts, uninstall feature when due.
 	 */
 	void featureRemove(final Repository repo, final Feature feature)
 			throws Exception {
@@ -217,7 +218,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		final boolean isPresent = isPresent(feature);
 
 		if (propBean.checkDecrement(repo, feature)) {
-			if (propBean.totalValue(feature) == 0) {
+			if (propBean.countValue(null, feature) == 0) {
 				if (isPresent) {
 					featureUninstall(feature);
 				} else {
@@ -239,7 +240,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	void featureUninstall(final Feature feature) throws Exception {
 		final String name = feature.getName();
 		final String version = feature.getVersion();
-		featuresService.uninstallFeature(name, version);
+		getFeaturesService().uninstallFeature(name, version);
 	}
 
 	public BundleContext getBundleContext() {
@@ -276,8 +277,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	 * Feature auto-install mode.
 	 */
 	boolean isAutoInstall(final Feature feature) {
-		return feature.getInstall() != null
-				&& feature.getInstall().equals(Feature.DEFAULT_INSTALL_MODE);
+		return Feature.DEFAULT_INSTALL_MODE.equals(feature.getInstall());
 	}
 
 	/**
@@ -316,15 +316,20 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	 * Feature is installed.
 	 */
 	boolean isPresent(final Feature feature) {
-		return featuresService.isInstalled(feature);
+		return getFeaturesService().isInstalled(feature);
 	}
 
-	/** Default feature install options. */
+	/**
+	 * Default feature install options.
+	 */
 	EnumSet<Option> options() {
 		return EnumSet.of(Option.Verbose, Option.PrintBundlesToRefresh);
 	}
 
-	protected Document parse(final File artifact) throws Exception {
+	/**
+	 * Parse XML file.
+	 */
+	Document parse(final File artifact) throws Exception {
 		if (dbf == null) {
 			dbf = DocumentBuilderFactory.newInstance();
 			dbf.setNamespaceAware(true);
@@ -361,14 +366,14 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	 * Properties file.
 	 */
 	File propFile() {
-		return bundleContext.getDataFile(PROPERTIES);
+		return getBundleContext().getDataFile(PROP_FILE);
 	}
 
 	/**
 	 * Find repository by name.
 	 */
 	Repository repo(final String repoName) {
-		final Repository[] list = featuresService.listRepositories();
+		final Repository[] list = getFeaturesService().listRepositories();
 		for (final Repository repo : list) {
 			if (repoName.equals(repo.getName())) {
 				return repo;
@@ -378,7 +383,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	}
 
 	/**
-	 * Add repository, process auto-install.
+	 * Add repository, process auto-install features.
 	 */
 	synchronized void repoAdd(final Bundle bundle) throws Exception {
 
@@ -392,7 +397,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		}
 
 		/** Register repository w/o any feature install. */
-		featuresService.addRepository(repoUrl.toURI(), false);
+		getFeaturesService().addRepository(repoUrl.toURI(), false);
 
 		final Repository repo = repo(repoName);
 
@@ -409,7 +414,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	}
 
 	/**
-	 * Remove repository, process auto-install.
+	 * Remove repository, process auto-install features.
 	 */
 	synchronized void repoRemove(final Bundle bundle) throws Exception {
 
@@ -427,7 +432,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		featureRemove(repo);
 
 		/** Unregister repository w/o any feature uninstall. */
-		featuresService.removeRepository(repoUrl.toURI(), false);
+		getFeaturesService().removeRepository(repoUrl.toURI(), false);
 
 	}
 

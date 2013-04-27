@@ -45,14 +45,12 @@ public class PropBean {
 	boolean checkDecrement(final Repository repo, final Feature feature)
 			throws Exception {
 
-		propLoad();
-		final int total = totalValue(feature);
-		final int local = localValue(repo, feature);
+		final int total = countValue(null, feature);
+		final int local = countValue(repo, feature);
 
 		if (local == 1) {
-			totalValue(feature, total - 1);
-			localValue(repo, feature, local - 1);
-			propSave();
+			countValue(null, feature, total - 1);
+			countValue(repo, feature, local - 1);
 			return true;
 		} else {
 			return false;
@@ -66,14 +64,12 @@ public class PropBean {
 	boolean checkIncrement(final Repository repo, final Feature feature)
 			throws Exception {
 
-		propLoad();
-		final int total = totalValue(feature);
-		final int local = localValue(repo, feature);
+		final int total = countValue(null, feature);
+		final int local = countValue(repo, feature);
 
 		if (local == 0) {
-			totalValue(feature, total + 1);
-			localValue(repo, feature, local + 1);
-			propSave();
+			countValue(null, feature, total + 1);
+			countValue(repo, feature, local + 1);
 			return true;
 		} else {
 			return false;
@@ -111,16 +107,29 @@ public class PropBean {
 	/**
 	 * Repository/Feature count property name.
 	 */
-	String localKey(final Repository repo, final Feature feature) {
-		return repo.getName() + "/" + feature.getId();
+	String countKey(final Repository repo, final Feature feature) {
+		final String repoId;
+		if (repo == null) {
+			repoId = "[repo]";
+		} else {
+			repoId = repo.getName();
+		}
+		final String featureId;
+		if (feature == null) {
+			featureId = "[feature]";
+		} else {
+			featureId = feature.getId();
+		}
+		return repoId + "/" + featureId;
 	}
 
 	/**
 	 * Load repository/feature count.
 	 */
-	int localValue(final Repository repo, final Feature feature)
+	int countValue(final Repository repo, final Feature feature)
 			throws Exception {
-		final String key = localKey(repo, feature);
+		propLoad();
+		final String key = countKey(repo, feature);
 		final String value = prop.getProperty(key, "0");
 		return Integer.parseInt(value);
 	}
@@ -128,37 +137,17 @@ public class PropBean {
 	/**
 	 * Save repository/feature count.
 	 */
-	int localValue(final Repository repo, final Feature feature, final int count)
+	int countValue(final Repository repo, final Feature feature, final int count)
 			throws Exception {
-		final String key = localKey(repo, feature);
+		propLoad();
+		final String key = countKey(repo, feature);
 		final String value = prop.getProperty(key, "0");
-		prop.setProperty(key, Integer.toString(count));
-		return Integer.parseInt(value);
-	}
-
-	/**
-	 * Total feature count property name.
-	 */
-	String totalKey(final Feature feature) {
-		return "total" + "/" + feature.getId();
-	}
-
-	/**
-	 * Load total/feature count.
-	 */
-	int totalValue(final Feature feature) throws Exception {
-		final String key = totalKey(feature);
-		final String value = prop.getProperty(key, "0");
-		return Integer.parseInt(value);
-	}
-
-	/**
-	 * Save total/feature count.
-	 */
-	int totalValue(final Feature feature, final int count) throws Exception {
-		final String key = totalKey(feature);
-		final String value = prop.getProperty(key, "0");
-		prop.setProperty(key, Integer.toString(count));
+		if (count == 0) {
+			prop.remove(key);
+		} else {
+			prop.setProperty(key, Integer.toString(count));
+		}
+		propSave();
 		return Integer.parseInt(value);
 	}
 
