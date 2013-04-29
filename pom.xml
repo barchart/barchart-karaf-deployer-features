@@ -15,6 +15,13 @@
 	<version>3.0.0-build001-SNAPSHOT</version>
 	<packaging>bundle</packaging>
 
+	<scm>
+		<url>https://github.com/barchart/barchart-karaf-deployer-features</url>
+		<connection>scm:git:git://github.com/barchart/barchart-karaf-deployer-features.git</connection>
+		<developerConnection>scm:git:ssh://git@github.com/barchart/barchart-karaf-deployer-features.git</developerConnection>
+		<tag>master</tag>
+	</scm>
+
 	<properties>
 		<projectKarafVersion>3.0.0.RC1</projectKarafVersion>
 	</properties>
