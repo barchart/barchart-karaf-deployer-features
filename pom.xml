@@ -1,5 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
 	<modelVersion>4.0.0</modelVersion>
 
@@ -12,14 +11,14 @@
 
 	<groupId>com.barchart.karaf</groupId>
 	<artifactId>barchart-karaf-deployer-features</artifactId>
-	<version>3.0.0-build001-SNAPSHOT</version>
+	<version>3.0.0-build001</version>
 	<packaging>bundle</packaging>
 
 	<scm>
 		<url>https://github.com/barchart/barchart-karaf-deployer-features</url>
 		<connection>scm:git:git://github.com/barchart/barchart-karaf-deployer-features.git</connection>
 		<developerConnection>scm:git:ssh://git@github.com/barchart/barchart-karaf-deployer-features.git</developerConnection>
-		<tag>master</tag>
+		<tag>barchart-karaf-deployer-features-3.0.0-build001</tag>
 	</scm>
 
 	<properties>
