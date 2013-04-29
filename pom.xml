@@ -11,14 +11,14 @@
 
 	<groupId>com.barchart.karaf</groupId>
 	<artifactId>barchart-karaf-deployer-features</artifactId>
-	<version>3.0.0-build001</version>
+	<version>3.0.0-build002-SNAPSHOT</version>
 	<packaging>bundle</packaging>
 
 	<scm>
 		<url>https://github.com/barchart/barchart-karaf-deployer-features</url>
 		<connection>scm:git:git://github.com/barchart/barchart-karaf-deployer-features.git</connection>
 		<developerConnection>scm:git:ssh://git@github.com/barchart/barchart-karaf-deployer-features.git</developerConnection>
-		<tag>barchart-karaf-deployer-features-3.0.0-build001</tag>
+		<tag>master</tag>
 	</scm>
 
 	<properties>
