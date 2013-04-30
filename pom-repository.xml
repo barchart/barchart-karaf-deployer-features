@@ -45,6 +45,7 @@
 						</goals>
 						<configuration>
 							<installMode>auto</installMode>
+							<startLevel>45</startLevel>
 						</configuration>
 					</execution>
 				</executions>
