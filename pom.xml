@@ -11,7 +11,7 @@
 
 	<groupId>com.barchart.karaf</groupId>
 	<artifactId>barchart-karaf-deployer-features</artifactId>
-	<version>3.0.0-build002-SNAPSHOT</version>
+	<version>3.0.0-build003-SNAPSHOT</version>
 	<packaging>bundle</packaging>
 
 	<scm>
