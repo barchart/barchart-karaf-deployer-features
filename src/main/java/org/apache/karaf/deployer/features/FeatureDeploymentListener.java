@@ -71,7 +71,8 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	static final String META_PATH = "/META-INF/" + FEATURE_PATH + "/";
 
 	/** Deployer state properties file name. */
-	static final String PROP_FILE = "deployer.properties";
+	static final String PROP_FILE = FeatureDeploymentListener.class
+			.getPackage().getName() + ".repository.properties";
 
 	/** Feature deployer protocol, used by default feature deployer. */
 	static final String PROTOCOL = "feature";
@@ -384,9 +385,11 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 
 	/**
 	 * Properties file.
+	 * <p>
+	 * Use system bundle for global storage to permit self update.
 	 */
 	File propFile() {
-		return getBundleContext().getDataFile(PROP_FILE);
+		return getBundleContext().getBundle(0).getDataFile(PROP_FILE);
 	}
 
 	/**
