@@ -88,6 +88,16 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	private final Logger logger = LoggerFactory
 			.getLogger(FeatureDeploymentListener.class);
 
+	void logBundleEvent(final BundleEvent event) {
+
+		final Bundle bundle = event.getBundle();
+
+		final BundleEventType type = BundleEventType.from(event.getType());
+
+		logger.info("Event: {} {}", type, bundle);
+
+	}
+
 	@Override
 	public void bundleChanged(final BundleEvent event) {
 
@@ -99,20 +109,28 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 
 		final BundleEventType type = BundleEventType.from(event.getType());
 
-		try {
-			switch (type) {
-			default:
-				return;
-			case STARTED:
-				repoAdd(bundle);
-				break;
-			case STOPPED:
-				repoRemove(bundle);
-				break;
+		synchronized (Runnable.class) {
+			try {
+				switch (type) {
+				default:
+					return;
+				case INSTALLED:
+					logBundleEvent(event);
+					repoCreate(bundle);
+					break;
+				case UNINSTALLED:
+					logBundleEvent(event);
+					repoDelete(bundle);
+					break;
+				case UPDATED:
+					logBundleEvent(event);
+					repoDelete(bundle);
+					repoCreate(bundle);
+				}
+				logger.info("Success: " + type + " " + bundle);
+			} catch (final Throwable e) {
+				logger.error("Failure: " + type + " " + bundle, e);
 			}
-			logger.info("Success: " + type + " / " + bundle);
-		} catch (final Throwable e) {
-			logger.error("Failure: " + type + " / " + bundle, e);
 		}
 
 	}
@@ -194,6 +212,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		final String name = feature.getName();
 		final String version = feature.getVersion();
 		getFeaturesService().installFeature(name, version, options());
+		logger.info("Feature installed: {} {}", name, version);
 	}
 
 	/**
@@ -235,12 +254,13 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	}
 
 	/**
-	 * Uinstall feature.
+	 * Uninstall feature.
 	 */
 	void featureUninstall(final Feature feature) throws Exception {
 		final String name = feature.getName();
 		final String version = feature.getVersion();
 		getFeaturesService().uninstallFeature(name, version);
+		logger.info("Feature uninstalled: {} {}", name, version);
 	}
 
 	public BundleContext getBundleContext() {
@@ -261,8 +281,8 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	/**
 	 * Feature service contains named repository.
 	 */
-	boolean hasRepoRegistered(final String repoName) {
-		return repo(repoName) != null;
+	boolean hasRepoRegistered(final String repoId) {
+		return repo(repoId) != null;
 	}
 
 	/**
@@ -383,56 +403,66 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	}
 
 	/**
-	 * Add repository, process auto-install features.
+	 * Repository ID stored in the bundle.
+	 * <p>
+	 * Currently it is an artifact id made from external feature.xml file name
+	 * by the URL transformer.
 	 */
-	synchronized void repoAdd(final Bundle bundle) throws Exception {
+	String repoId(final Bundle bundle) {
+		return bundle.getSymbolicName();
+	}
 
-		final String repoName = repoName(bundle);
+	/**
+	 * Create repository, process auto-install features install.
+	 */
+	void repoCreate(final Bundle bundle) throws Exception {
+
+		final String repoId = repoId(bundle);
 		final URL repoUrl = repoUrl(bundle);
 
-		logger.info("Add: {} {}", repoName, repoUrl);
+		logger.info("Repo Create: {} {}", repoId, repoUrl);
 
-		if (hasRepoRegistered(repoName)) {
-			throw new IllegalStateException("Repo is present: " + repoName);
+		if (hasRepoRegistered(repoId)) {
+			throw new IllegalStateException("Repo is present: " + repoId);
 		}
 
 		/** Register repository w/o any feature install. */
 		getFeaturesService().addRepository(repoUrl.toURI(), false);
 
-		final Repository repo = repo(repoName);
+		final Repository repo = repo(repoId);
 
 		featureAdd(repo);
 
-	}
-
-	/**
-	 * Repository artifact id made from external feature.xml file name by url
-	 * transformer.
-	 */
-	String repoName(final Bundle bundle) {
-		return bundle.getSymbolicName();
-	}
-
-	/**
-	 * Remove repository, process auto-install features.
-	 */
-	synchronized void repoRemove(final Bundle bundle) throws Exception {
-
-		final String repoName = repoName(bundle);
-		final URL repoUrl = repoUrl(bundle);
-
-		logger.info("Remove: {} {}", repoName, repoUrl);
-
-		if (!hasRepoRegistered(repoName)) {
-			throw new IllegalStateException("Repo is missing: " + repoName);
+		if (!hasRepoRegistered(repoId)) {
+			throw new IllegalStateException("Repo is missing: " + repoId);
 		}
 
-		final Repository repo = repo(repoName);
+	}
+
+	/**
+	 * Delete repository, process auto-install features uninstall.
+	 */
+	void repoDelete(final Bundle bundle) throws Exception {
+
+		final String repoId = repoId(bundle);
+		final URL repoUrl = repoUrl(bundle);
+
+		logger.info("Repo Delete: {} {}", repoId, repoUrl);
+
+		if (!hasRepoRegistered(repoId)) {
+			throw new IllegalStateException("Repo is missing: " + repoId);
+		}
+
+		final Repository repo = repo(repoId);
 
 		featureRemove(repo);
 
 		/** Unregister repository w/o any feature uninstall. */
-		getFeaturesService().removeRepository(repoUrl.toURI(), false);
+		getFeaturesService().removeRepository(repo.getURI(), false);
+
+		if (hasRepoRegistered(repoId)) {
+			throw new IllegalStateException("Repo is present: " + repoId);
+		}
 
 	}
 
