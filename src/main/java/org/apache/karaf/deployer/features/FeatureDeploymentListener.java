@@ -131,7 +131,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 			return;
 		}
 
-		final BundleEventType type = BundleEventType.from(event.getType());
+		final BundleEventType type = BundleEventType.from(event);
 
 		synchronized (Runnable.class) {
 			try {
@@ -170,7 +170,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 					if (isKnownFeaturesURI(uri)) {
 						return true;
 					} else {
-						logger.error("unknown features uri", new Exception(""
+						logger.error("Unknown features uri", new Exception(""
 								+ uri));
 					}
 				}
@@ -218,7 +218,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	 */
 	public void destroy() throws Exception {
 		bundleContext.removeBundleListener(this);
-		logger.info("deactivate");
+		logger.info("Deployer deactivate.");
 	}
 
 	/**
@@ -264,7 +264,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 				dependencyAdd(repo, feature);
 				featureInstall(feature);
 			}
-			logger.info("Feature Added: {} @ {} {} {}", totalCount,
+			logger.info("Feature added: {} @ {} {} {}", totalCount,
 					repo.getName(), feature.getName(), feature.getVersion());
 		} else {
 			logger.error("Feature count error.", new IllegalStateException(
@@ -395,7 +395,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	 * Component activate.
 	 */
 	public void init() throws Exception {
-		logger.info("activate");
+		logger.info("Deployer activate.");
 		bundleContext.addBundleListener(this);
 	}
 
@@ -463,7 +463,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 
 		final Bundle bundle = event.getBundle();
 
-		final BundleEventType type = BundleEventType.from(event.getType());
+		final BundleEventType type = BundleEventType.from(event);
 
 		logger.info("Event: {} {}", type, bundle);
 
@@ -542,7 +542,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		final String repoId = repoId(bundle);
 		final URL repoUrl = repoUrl(bundle);
 
-		logger.info("Repo Create: {} {}", repoId, repoUrl);
+		logger.info("Repo create: {} {}", repoId, repoUrl);
 
 		if (hasRepoRegistered(repoId)) {
 			logger.error("Attemting to register a duplicate repository.");
@@ -571,7 +571,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		final String repoId = repoId(bundle);
 		final URL repoUrl = repoUrl(bundle);
 
-		logger.info("Repo Delete: {} {}", repoId, repoUrl);
+		logger.info("Repo delete: {} {}", repoId, repoUrl);
 
 		if (!hasRepoRegistered(repoId)) {
 			logger.error("Attemting to unregister an unknown repository.");

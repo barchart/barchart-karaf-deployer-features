@@ -18,6 +18,9 @@ package org.apache.karaf.deployer.features;
 
 import org.osgi.framework.BundleEvent;
 
+/**
+ * Convenience OSGI event representation.
+ */
 public enum BundleEventType {
 
 	INSTALLED(BundleEvent.INSTALLED), //
@@ -39,6 +42,10 @@ public enum BundleEventType {
 
 	BundleEventType(final int code) {
 		this.code = code;
+	}
+
+	public static BundleEventType from(final BundleEvent event) {
+		return from(event.getType());
 	}
 
 	public static BundleEventType from(final int code) {
