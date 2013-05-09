@@ -49,14 +49,10 @@ import org.xml.sax.SAXParseException;
  * descriptor as well as auto-install features.
  * <p>
  * Assumptions:
- * <p>
- * feature.xml file must have external file name based on artifact id.
- * <p>
- * feature.xml file must have internal root name based on artifact id.
- * <p>
- * feature.xml file must have file extension managed by this component.
- * <p>
- * external file name and internal root name must be the same.
+ * <li>feature.xml file must have external file name based on artifact id.
+ * <li>feature.xml file must have internal root name based on artifact id.
+ * <li>feature.xml file must have file extension managed by this component.
+ * <li>external file name and internal root name must be the same.
  */
 public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		SynchronousBundleListener {
@@ -137,11 +133,10 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	}
 
 	@Override
-	public boolean canHandle(final File artifact) {
+	public boolean canHandle(final File file) {
 		try {
-			if (artifact.isFile()
-					&& artifact.getName().endsWith("." + EXTENSION)) {
-				final Document doc = parse(artifact);
+			if (file.isFile() && file.getName().endsWith("." + EXTENSION)) {
+				final Document doc = parse(file);
 				final String name = doc.getDocumentElement().getLocalName();
 				final String uri = doc.getDocumentElement().getNamespaceURI();
 				if (ROOT_NODE.equals(name)) {
@@ -155,8 +150,8 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 			}
 		} catch (final Exception e) {
 			logger.error(
-					"Unable to parse deployed file "
-							+ artifact.getAbsolutePath(), e);
+					"Unable to parse deployed file " + file.getAbsolutePath(),
+					e);
 		}
 		return false;
 	}
@@ -426,19 +421,21 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		logger.info("Repo Create: {} {}", repoId, repoUrl);
 
 		if (hasRepoRegistered(repoId)) {
+			logger.error("Attemting to register a duplicate repository.");
 			throw new IllegalStateException("Repo is present: " + repoId);
 		}
 
 		/** Register repository w/o any feature install. */
 		getFeaturesService().addRepository(repoUrl.toURI(), false);
 
+		if (!hasRepoRegistered(repoId)) {
+			logger.error("Please verify repository file[name/version] vs xml[name/version].");
+			throw new IllegalStateException("Can not register repo: " + repoId);
+		}
+
 		final Repository repo = repo(repoId);
 
 		featureAdd(repo);
-
-		if (!hasRepoRegistered(repoId)) {
-			throw new IllegalStateException("Repo is missing: " + repoId);
-		}
 
 	}
 
@@ -453,6 +450,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		logger.info("Repo Delete: {} {}", repoId, repoUrl);
 
 		if (!hasRepoRegistered(repoId)) {
+			logger.error("Attemting to unregister an unknown repository.");
 			throw new IllegalStateException("Repo is missing: " + repoId);
 		}
 
@@ -464,6 +462,7 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		getFeaturesService().removeRepository(repo.getURI(), false);
 
 		if (hasRepoRegistered(repoId)) {
+			logger.error("Can not unregister repository from feature service.");
 			throw new IllegalStateException("Repo is present: " + repoId);
 		}
 
