@@ -28,6 +28,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.apache.felix.fileinstall.ArtifactUrlTransformer;
+import org.apache.karaf.features.Dependency;
 import org.apache.karaf.features.Feature;
 import org.apache.karaf.features.FeaturesNamespaces;
 import org.apache.karaf.features.FeaturesService;
@@ -48,11 +49,13 @@ import org.xml.sax.SAXParseException;
  * A deployment listener able to hot deploy (install/uninstall) a repository
  * descriptor as well as auto-install features.
  * <p>
- * Assumptions:
- * <li>feature.xml file must have external file name based on artifact id.
- * <li>feature.xml file must have internal root name based on artifact id.
- * <li>feature.xml file must have file extension managed by this component.
- * <li>external file name and internal root name must be the same.
+ * Assumptions and Conventions:
+ * <li>feature.xml file must have external file-name based on artifact-id
+ * <li>feature.xml file must have internal root-name based on artifact-id
+ * <li>feature.xml file must have file-extension managed by this component
+ * <li>external file-name and internal root-name must be the same
+ * <li>dependency features must be resolvable from available repositories
+ * <li>dependency features must have a version
  */
 public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		SynchronousBundleListener {
@@ -85,14 +88,38 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	private final Logger logger = LoggerFactory
 			.getLogger(FeatureDeploymentListener.class);
 
-	void logBundleEvent(final BundleEvent event) {
+	/**
+	 * Ensure all feature dependencies are installed into feature service.
+	 */
+	void assertDependencyInstalled(final Feature feature) throws Exception {
+		final List<Dependency> depencencyList = feature.getDependencies();
+		for (final Dependency depencency : depencencyList) {
+			if (isInstalled(depencency)) {
+				continue;
+			} else {
+				logger.error(
+						"Expected feature dependency must be already installed: {} -> {}",
+						feature, depencency);
+				throw new IllegalStateException("Missing feature dependency.");
+			}
+		}
+	}
 
-		final Bundle bundle = event.getBundle();
-
-		final BundleEventType type = BundleEventType.from(event.getType());
-
-		logger.info("Event: {} {}", type, bundle);
-
+	/**
+	 * Ensure all feature dependencies are registered with feature service.
+	 */
+	void assertDependencyRegistered(final Feature feature) throws Exception {
+		final List<Dependency> depencencyList = feature.getDependencies();
+		for (final Dependency depencency : depencencyList) {
+			if (isRegistered(depencency)) {
+				continue;
+			} else {
+				logger.error(
+						"Expected feature dependency must be already registered: {} -> {}",
+						feature, depencency);
+				throw new IllegalStateException("Missing feature dependency.");
+			}
+		}
 	}
 
 	@Override
@@ -157,11 +184,51 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	}
 
 	/**
+	 * Add all dependencies of a feature.
+	 */
+	void dependencyAdd(final Repository repo, final Feature feature)
+			throws Exception {
+
+		assertDependencyRegistered(feature);
+
+		final List<Dependency> depencencyList = feature.getDependencies();
+		for (final Dependency depencency : depencencyList) {
+			featureAdd(repo, featureRegistered(depencency));
+		}
+
+	}
+
+	/**
+	 * Remove all dependencies of a feature.
+	 */
+	void dependencyRemove(final Repository repo, final Feature feature)
+			throws Exception {
+
+		assertDependencyInstalled(feature);
+
+		final List<Dependency> depencencyList = feature.getDependencies();
+		for (final Dependency depencency : depencencyList) {
+			featureRemove(repo, featureInstalled(depencency));
+		}
+
+	}
+
+	/**
 	 * Component deactivate.
 	 */
 	public void destroy() throws Exception {
 		bundleContext.removeBundleListener(this);
 		logger.info("deactivate");
+	}
+
+	/**
+	 * Identity of feature/dependency based on name and version.
+	 */
+	boolean equals(final Feature feature, final Dependency depencency) {
+		final boolean sameName = feature.getName().equals(depencency.getName());
+		final boolean sameVersion = feature.getVersion().equals(
+				depencency.getVersion());
+		return sameName && sameVersion;
 	}
 
 	/**
@@ -186,15 +253,19 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		final boolean isMissing = isMissing(feature);
 
 		if (propBean.checkIncrement(repo, feature)) {
+			final int totalCount = propBean.countValue(null, feature);
 			if (isMissing) {
-				if (propBean.countValue(null, feature) > 1) {
+				if (totalCount > 1) {
 					logger.error(
 							"Feature count error.",
 							new IllegalStateException(
 									"Feature is missing when should be present."));
 				}
+				dependencyAdd(repo, feature);
 				featureInstall(feature);
 			}
+			logger.info("Feature Added: {} @ {} {} {}", totalCount,
+					repo.getName(), feature.getName(), feature.getVersion());
 		} else {
 			logger.error("Feature count error.", new IllegalStateException(
 					"Trying to install feature already added."));
@@ -205,10 +276,42 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	 * Install feature.
 	 */
 	void featureInstall(final Feature feature) throws Exception {
+
+		assertDependencyInstalled(feature);
+
 		final String name = feature.getName();
 		final String version = feature.getVersion();
 		getFeaturesService().installFeature(name, version, options());
+
 		logger.info("Feature installed: {} {}", name, version);
+
+	}
+
+	/**
+	 * Find installed feature based on dependency identity.
+	 */
+	Feature featureInstalled(final Dependency depencency) throws Exception {
+		final Feature[] featureArray = getFeaturesService()
+				.listInstalledFeatures();
+		for (final Feature feature : featureArray) {
+			if (equals(feature, depencency)) {
+				return feature;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Find registered feature based on dependency identity.
+	 */
+	Feature featureRegistered(final Dependency depencency) throws Exception {
+		final Feature[] featureArray = getFeaturesService().listFeatures();
+		for (final Feature feature : featureArray) {
+			if (equals(feature, depencency)) {
+				return feature;
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -233,9 +336,11 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 		final boolean isPresent = isPresent(feature);
 
 		if (propBean.checkDecrement(repo, feature)) {
-			if (propBean.countValue(null, feature) == 0) {
+			final int totalCount = propBean.countValue(null, feature);
+			if (totalCount == 0) {
 				if (isPresent) {
 					featureUninstall(feature);
+					dependencyRemove(repo, feature);
 				} else {
 					logger.error(
 							"Feature count error.",
@@ -243,6 +348,8 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 									"Feature is missing when should be present."));
 				}
 			}
+			logger.info("Feature removed: {} @ {} {} {}", totalCount,
+					repo.getName(), feature.getName(), feature.getVersion());
 		} else {
 			logger.error("Feature count error.", new IllegalStateException(
 					"Trying to uninstall feature already removed."));
@@ -253,10 +360,13 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	 * Uninstall feature.
 	 */
 	void featureUninstall(final Feature feature) throws Exception {
+
 		final String name = feature.getName();
 		final String version = feature.getVersion();
 		getFeaturesService().uninstallFeature(name, version);
+
 		logger.info("Feature uninstalled: {} {}", name, version);
+
 	}
 
 	public BundleContext getBundleContext() {
@@ -297,6 +407,13 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	}
 
 	/**
+	 * Verify if feature dependency is currently installed.
+	 */
+	boolean isInstalled(final Dependency depencency) throws Exception {
+		return featureInstalled(depencency) != null;
+	}
+
+	/**
 	 * Feature name space check.
 	 */
 	boolean isKnownFeaturesURI(final String uri) {
@@ -333,6 +450,23 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	 */
 	boolean isPresent(final Feature feature) {
 		return getFeaturesService().isInstalled(feature);
+	}
+
+	/**
+	 * Verify if feature dependency is present in any repository.
+	 */
+	boolean isRegistered(final Dependency depencency) throws Exception {
+		return featureRegistered(depencency) != null;
+	}
+
+	void logBundleEvent(final BundleEvent event) {
+
+		final Bundle bundle = event.getBundle();
+
+		final BundleEventType type = BundleEventType.from(event.getType());
+
+		logger.info("Event: {} {}", type, bundle);
+
 	}
 
 	/**
@@ -401,16 +535,6 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 	}
 
 	/**
-	 * Repository ID stored in the bundle.
-	 * <p>
-	 * Currently it is an artifact id made from external feature.xml file name
-	 * by the URL transformer.
-	 */
-	String repoId(final Bundle bundle) {
-		return bundle.getSymbolicName();
-	}
-
-	/**
 	 * Create repository, process auto-install features install.
 	 */
 	void repoCreate(final Bundle bundle) throws Exception {
@@ -466,6 +590,16 @@ public class FeatureDeploymentListener implements ArtifactUrlTransformer,
 			throw new IllegalStateException("Repo is present: " + repoId);
 		}
 
+	}
+
+	/**
+	 * Repository ID stored in the bundle.
+	 * <p>
+	 * Currently it is an artifact id made from external feature.xml file name
+	 * by the URL transformer.
+	 */
+	String repoId(final Bundle bundle) {
+		return bundle.getSymbolicName();
 	}
 
 	/**
